@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS职业选手大竞猜 (2026版)</title>
+    <style>
+        body { background-color: #1a1a2e; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; padding-bottom: 60px; position: relative; min-height: 100vh; box-sizing: border-box; }
+        h1 { color: #e94560; font-size: 24px; }
+        .search-container { position: relative; width: 80%; max-width: 300px; margin: 0 auto 15px auto; text-align: left; }
+        input { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border-radius: 8px; border: 2px solid #e94560; outline: none; background-color: #16213e; color: #fff; }
+        input::placeholder { color: #888; }
+        .dropdown { position: absolute; top: 100%; left: 0; right: 0; background-color: #16213e; border: 1px solid #e94560; border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        .dropdown-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #1a1a2e; font-size: 16px; }
+        .dropdown-item:hover, .dropdown-item:active { background-color: #e94560; color: white; }
+        button { padding: 12px 25px; font-size: 16px; background-color: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(233, 69, 96, 0.3); margin-top: 10px; }
+        button:active { background-color: #b33045; transform: scale(0.98); }
+        #restartBtn { background-color: #4caf50; display: none; box-shadow: 0 4px 6px rgba(76, 175, 80, 0.3); }
+        #results { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .guess-row { background-color: #16213e; padding: 15px; border-radius: 10px; width: 90%; max-width: 400px; text-align: left; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border-left: 5px solid #e94560; line-height: 1.6; }
+        
+        /* 📺 Max TV 专属独家高级水印 */
+        .watermark {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.35);
+            background: rgba(233, 69, 96, 0.15);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(233, 69, 96, 0.25);
+            letter-spacing: 1px;
+            pointer-events: none; /* 防止挡住底部的点击事件 */
+            user-select: none;
+            font-family: 'Arial Black', sans-serif;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎯 猜猜CS职业选手 🎯</h1>
+    <p>每日盲盒，看看你的含CS量！</p>
+    
+    <div class="search-container">
+        <input type="text" id="guessInput" placeholder="输入选手id" autocomplete="off">
+        <div id="autocompleteDropdown" class="dropdown"></div>
+    </div>
+    
+    <button id="guessBtn" onclick="makeGuess()">Confirm / 确认</button>
+    <button id="restartBtn" onclick="restartGame()">🎉 盲狙成功！再来一局 🔄</button>
+
+    <div id="results"></div>
+
+    <div class="watermark">📺 Max TV</div>
+
+    <script>
+        // 🔒 64人2026超级大满贯名单（包含最新加入的 jks，以及修正位置后的 LVG 战队！）
+        const db = [
+          { name: "s1mple", region: "欧洲", country: "乌克兰", team: "BC.Game", role: "狙击手/步枪手", age: 28 },
+          { name: "jks", region: "大洋洲", country: "澳大利亚", team: "FlyQuest", role: "步枪手", age: 30 },
+          { name: "AdreN", region: "独联体", country: "哈萨克斯坦", team: "Free Agent", role: "步枪手", age: 36 },
+          { name: "gla1ve", region: "欧洲", country: "丹麦", team: "Retired", role: "步枪手", age: 30 },
+          { name: "dupreeh", region: "欧洲", country: "丹麦", team: "Retired", role: "步枪手", age: 33 },
+          { name: "kennyS", region: "欧洲", country: "法国", team: "Retired", role: "狙击手", age: 31 },
+          { name: "olofmeister", region: "欧洲", country: "瑞典", team: "Free Agent", role: "步枪手", age: 34 },
+          { name: "Magisk", region: "欧洲", country: "丹麦", team: "Free Agent", role: "步枪手", age: 28 },
+          { name: "HooXi", region: "欧洲", country: "丹麦", team: "Astralis", role: "步枪手", age: 31 },
+          { name: "MSL", region: "欧洲", country: "丹麦", team: "Free Agent", role: "步枪手", age: 31 },
+          { name: "device", region: "欧洲", country: "丹麦", team: "100 Thieves", role: "狙击手", age: 30 },
+          { name: "rain", region: "欧洲", country: "挪威", team: "100 Thieves", role: "指挥/步枪手", age: 31 },
+          { name: "sh1ro", region: "独联体", country: "俄罗斯", team: "Spirit", role: "狙击手", age: 24 },
+          { name: "magixx", region: "独联体", country: "俄罗斯", team: "Spirit", role: "步枪手", age: 23 },
+          { name: "tN1R", region: "独联体", country: "白俄罗斯", team: "Spirit", role: "步枪手", age: 21 },
+          { name: "zont1x", region: "欧洲", country: "乌克兰", team: "Spirit", role: "步枪手", age: 19 },
+          { name: "donk", region: "独联体", country: "俄罗斯", team: "Spirit", role: "步枪手", age: 19 },
+          { name: "karrigan", region: "欧洲", country: "丹麦", team: "Falcons", role: "指挥", age: 36 },
+          { name: "NiKo", region: "欧洲", country: "波黑", team: "Falcons", role: "步枪手", age: 29 },
+          { name: "TeSeS", region: "欧洲", country: "丹麦", team: "Falcons", role: "步枪手", age: 25 },
+          { name: "m0NESY", region: "独联体", country: "俄罗斯", team: "Falcons", role: "狙击手", age: 21 },
+          { name: "kyousuke", region: "独联体", country: "俄罗斯", team: "Falcons", role: "步枪手", age: 18 },
+          { name: "apEX", region: "欧洲", country: "法国", team: "Vitality", role: "指挥", age: 33 },
+          { name: "ropz", region: "欧洲", country: "爱沙尼亚", team: "Vitality", role: "步枪手", age: 26 },
+          { name: "ZywOo", region: "欧洲", country: "法国", team: "Vitality", role: "狙击手", age: 25 },
+          { name: "flameZ", region: "欧洲", country: "以色列", team: "Vitality", role: "步枪手", age: 22 },
+          { name: "mezii", region: "欧洲", country: "英国", team: "Vitality", role: "步枪手", age: 25 },
+          { name: "Aleksib", region: "欧洲", country: "芬兰", team: "NAVI", role: "指挥", age: 29 },
+          { name: "iM", region: "欧洲", country: "罗马尼亚", team: "NAVI", role: "步枪手", age: 26 },
+          { name: "b1t", region: "欧洲", country: "乌克兰", team: "NAVI", role: "步枪手", age: 23 },
+          { name: "w0nderful", region: "欧洲", country: "乌克兰", team: "NAVI", role: "狙击手", age: 21 },
+          { name: "makazze", region: "欧洲", country: "科索沃", team: "NAVI", role: "步枪手", age: 19 },
+          { name: "huNter-", region: "欧洲", country: "波黑", team: "G2", role: "步枪手", age: 30 },
+          { name: "SunPayus", region: "欧洲", country: "西班牙", team: "G2", role: "狙击手", age: 27 },
+          { name: "matys", region: "欧洲", country: "斯洛伐克", team: "G2", role: "步枪手", age: 24 },
+          { name: "HeavyGod", region: "欧洲", country: "以色列", team: "G2", role: "步枪手", age: 23 },
+          { name: "NertZ", region: "欧洲", country: "以色列", team: "G2", role: "步枪手", age: 26 },
+          { name: "FalleN", region: "美洲", country: "巴西", team: "FURIA", role: "指挥/狙击手", age: 35 },
+          { name: "yuurih", region: "美洲", country: "巴西", team: "FURIA", role: "步枪手", age: 26 },
+          { name: "YEKINDAR", region: "欧洲", country: "拉脱维亚", team: "FURIA", role: "步枪手", age: 26 },
+          { name: "KSCERATO", region: "美洲", country: "巴西", team: "FURIA", role: "步枪手", age: 26 },
+          { name: "molodoy", region: "独联体", country: "哈萨克斯坦", team: "FURIA", role: "狙击手", age: 21 },
+          { name: "MA3JR", region: "欧洲", country: "土耳其", team: "Aurora", role: "指挥", age: 33 },
+          { name: "XANTARES", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 30 },
+          { name: "woxic", region: "欧洲", country: "土耳其", team: "Aurora", role: "狙击手", age: 27 },
+          { name: "soulfly", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 22 },
+          { name: "Wicadia", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 21 },
+          { name: "bLitz", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "指挥", age: 24 },
+          { name: "Techno", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 21 },
+          { name: "mzinho", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 19 },
+          { name: "910", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "狙击手", age: 24 },
+          { name: "cobrazera", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 20 },
+          { name: "frozen", region: "欧洲", country: "斯洛伐克", team: "FaZe", role: "步枪手", age: 23 },
+          { name: "Twistzz", region: "美洲", country: "加拿大", team: "FaZe", role: "步枪手", age: 26 },
+          { name: "broky", region: "欧洲", country: "拉脱维亚", team: "FaZe", role: "狙击手", age: 25 },
+          { name: "jcobbb", region: "欧洲", country: "波兰", team: "FaZe", role: "步枪手", age: 22 },
+          { name: "Maka", region: "欧洲", country: "法国", team: "3DMAX", role: "狙击手/指挥", age: 28 },
+          { name: "Lucky", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 28 },
+          { name: "misutaaa", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 23 },
+          { name: "Ex3rcice", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 26 },
+          { name: "Graviti", region: "欧洲", country: "法国", team: "3DMAX", role: "步xl", age: 24 },
+          { name: "NAF", region: "美洲", country: "加拿大", team: "Liquid", role: "步枪手", age: 28 },
+          { name: "EliGE", region: "美洲", country: "美国", team: "Liquid", role: "步枪手", age: 28 },
+          { name: "malbsMd", region: "美洲", country: "危地马拉", team: "Liquid", role: "步枪手", age: 23 },
+          { name: "siuhy", region: "欧洲", country: "波兰", team: "Liquid", role: "指挥", age: 23 },
+          { name: "ultimate", region: "欧洲", country: "波兰", team: "Liquid", role: "狙击手", age: 22 },
+          { name: "JamYoung", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 25 },
+          { name: "Jee", region: "亚洲", country: "中国", team: "TYLOO", role: "狙击手", age: 24 },
+          { name: "Mercury", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 21 },
+          { name: "Moseyuh", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 23 },
+          { name: "Zero", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 21 },
+          { name: "Westmelon", region: "亚洲", country: "中国", team: "Lynn Vision", role: "指挥", age: 27 },
+          { name: "z4KR", region: "亚洲", country: "中国", team: "Lynn Vision", role: "狙击手", age: 23 },
+          { name: "Starry", region: "亚洲", country: "中国", team: "Lynn Vision", role: "步枪手", age: 21 },
+          { name: "EmiliaQAQ", region: "亚洲", country: "中国", team: "Lynn Vision", role: "步枪手", age: 23 },
+          { name: "C4LLM3SU3", region: "亚洲", country: "中国", team: "Lynn Vision", role: "步枪手", age: 20 }
+        ];
+
+        let targetPlayer = db[Math.floor(Math.random() * db.length)];
+
+        const inputEl = document.getElementById("guessInput");
+        const dropdownEl = document.getElementById("autocompleteDropdown");
+
+        inputEl.addEventListener("input", function() {
+            const val = this.value.trim().toLowerCase();
+            dropdownEl.innerHTML = ""; 
+            if (!val) { dropdownEl.style.display = "none"; return; }
+            
+            const matches = db.filter(p => p.name.toLowerCase().startsWith(val));
+            if (matches.length > 0) {
+                dropdownEl.style.display = "block"; 
+                matches.forEach(player => {
+                    const item = document.createElement("div");
+                    item.className = "dropdown-item";
+                    item.innerHTML = player.name;
+                    item.onclick = function() {
+                        inputEl.value = player.name;
+                        dropdownEl.style.display = "none";
+                    };
+                    dropdownEl.appendChild(item);
+                });
+            } else {
+                dropdownEl.style.display = "none";
+            }
+        });
+
+        document.addEventListener("click", function(e) {
+            if (e.target !== inputEl) { dropdownEl.style.display = "none"; }
+        });
+
+        function makeGuess() {
+            const inputVal = document.getElementById("guessInput").value.trim();
+            const guess = db.find(p => p.name.toLowerCase() === inputVal.toLowerCase());
+            
+            if (!guess) {
+                alert("❌ 查无此人！要不你再看看下拉提示？");
+                return;
+            }
+
+            let countryColor = "🟥";
+            if (guess.country === targetPlayer.country) {
+                countryColor = "🟩"; 
+            } else if (guess.region === targetPlayer.region) {
+                countryColor = "🟨"; 
+            }
+
+            let teamColor = guess.team === targetPlayer.team ? "🟩" : "🟥";
+
+            let roleColor = "🟥";
+            if (guess.role === targetPlayer.role) {
+                roleColor = "🟩";
+            } else if ((guess.role.includes("步枪") || guess.role.includes("指挥")) && (targetPlayer.role.includes("步枪") || targetPlayer.role.includes("指挥"))) {
+                roleColor = "🟨"; 
+            }
+
+            let ageColor = "🟥";
+            let arrow = guess.age > targetPlayer.age ? "🔽" : "🔼";
+            
+            if (guess.age === targetPlayer.age) {
+                ageColor = "🟩";
+                arrow = "";
+            } else if (Math.abs(guess.age - targetPlayer.age) <= 2) {
+                ageColor = "🟨"; 
+            }
+
+            const html = `
+                <div class="guess-row">
+                    <strong>ID: ${guess.name}</strong> ${guess.name === targetPlayer.name ? "🟩 盲狙成功！" : "🟥"}<br>
+                    🏴 国籍: ${guess.country} ${countryColor}<br>
+                    🛡️ 战队: ${guess.team} ${teamColor}<br>
+                    🔫 位置: ${guess.role} ${roleColor}<br>
+                    🎂 年龄: ${guess.age} 岁 ${ageColor} ${arrow}
+                </div>
+            `;
+
+            document.getElementById("results").insertAdjacentHTML('afterbegin', html);
+            document.getElementById("guessInput").value = ""; 
+            dropdownEl.style.display = "none"; 
+
+            if (guess.name === targetPlayer.name) {
+                document.getElementById("guessBtn").style.display = "none"; 
+                document.getElementById("restartBtn").style.display = "inline-block"; 
+                document.getElementById("guessInput").disabled = true; 
+            }
+        }
+
+        function restartGame() {
+            targetPlayer = db[Math.floor(Math.random() * db.length)];
+            document.getElementById("results").innerHTML = "";
+            document.getElementById("guessBtn").style.display = "inline-block";
+            document.getElementById("restartBtn").style.display = "none";
+            document.getElementById("guessInput").disabled = false;
+            document.getElementById("guessInput").focus();
+        }
+    </script>
+</body>
+</html>

@@ -2,66 +2,137 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CS职业选手大竞猜 (2026版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CS Guessr</title>
+    <!-- 引入免费的 PeerJS 联机库 -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background-color: #1a1a2e; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; padding-bottom: 60px; position: relative; min-height: 100vh; box-sizing: border-box; }
-        h1 { color: #e94560; font-size: 24px; }
-        .search-container { position: relative; width: 80%; max-width: 300px; margin: 0 auto 15px auto; text-align: left; }
+        body { background-color: #1a1a2e; color: #fff; font-family: sans-serif; text-align: center; padding: 15px; padding-bottom: 60px; }
+        h1 { color: #e94560; font-size: 28px; margin-bottom: 8px; font-weight: 800; letter-spacing: 1px; }
+        
+        /* 玩法核心引导文字 */
+        .game-subtitle { color: #cccccc; font-size: 14px; margin: 0 auto 15px auto; font-weight: bold; letter-spacing: 0.5px; }
+
+        /* 模式状态标签 */
+        .mode-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 15px; background: #2a2a40; color: #aaa; }
+        .mode-local { background: #0284c7; color: #fff; }
+        .mode-online { background: #b91c1c; color: #fff; }
+
+        /* 可折叠的联机大厅面板 */
+        .lobby-panel { width: 95%; max-width: 500px; background: #16213e; border-radius: 12px; padding: 12px; margin: 0 auto 15px auto; border: 1px solid #304163; box-sizing: border-box; }
+        .lobby-toggle { background: none; border: none; color: #e94560; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 0 auto; gap: 5px; }
+        .lobby-content { display: none; margin-top: 10px; border-top: 1px solid #1a1a2e; padding-top: 10px; }
+        .room-status { font-size: 14px; color: #ff4560; font-weight: bold; margin-bottom: 10px; }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-sm { padding: 10px; font-size: 14px; border-radius: 6px; font-weight: bold; cursor: pointer; flex: 1; border: none; color: white; }
+        .btn-create { background: #4caf50; }
+        .btn-join { background: #008cba; }
+
+        /* 实时数据监控 */
+        .battle-board { display: none; width: 95%; max-width: 500px; background: #16213e; border-radius: 12px; padding: 12px; margin: 15px auto; border: 1px solid #e94560; justify-content: space-between; align-items: center; box-sizing: border-box; }
+        .player-score { text-align: center; flex: 1; padding: 5px; border-radius: 8px; }
+        .score-num { font-size: 24px; font-weight: 800; margin: 2px 0; color: #e94560; }
+        .player-state { font-size: 13px; color: #ffb703; font-weight: bold; }
+
+        /* 搜索框与下拉菜单 */
+        .search-container { position: relative; width: 95%; max-width: 500px; margin: 0 auto 15px auto; text-align: left; }
         input { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border-radius: 8px; border: 2px solid #e94560; outline: none; background-color: #16213e; color: #fff; }
         input::placeholder { color: #888; }
+        input:disabled { background-color: #0f172a; border-color: #334155; color: #64748b; cursor: not-allowed; }
         .dropdown { position: absolute; top: 100%; left: 0; right: 0; background-color: #16213e; border: 1px solid #e94560; border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 10; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
         .dropdown-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #1a1a2e; font-size: 16px; }
-        .dropdown-item:hover, .dropdown-item:active { background-color: #e94560; color: white; }
-        button { padding: 12px 25px; font-size: 16px; background-color: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(233, 69, 96, 0.3); margin-top: 10px; }
-        button:active { background-color: #b33045; transform: scale(0.98); }
-        #restartBtn { background-color: #4caf50; display: none; box-shadow: 0 4px 6px rgba(76, 175, 80, 0.3); }
-        #results { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
-        .guess-row { background-color: #16213e; padding: 15px; border-radius: 10px; width: 90%; max-width: 400px; text-align: left; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border-left: 5px solid #e94560; line-height: 1.6; }
+        .dropdown-item:hover { background-color: #e94560; color: white; }
         
-        /* 📺 Max TV 专属独家高级水印 */
-        .watermark {
-            position: fixed;
-            bottom: 15px;
-            right: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            color: rgba(255, 255, 255, 0.35);
-            background: rgba(233, 69, 96, 0.15);
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid rgba(233, 69, 96, 0.25);
-            letter-spacing: 1px;
-            pointer-events: none; /* 防止挡住底部的点击事件 */
-            user-select: none;
-            font-family: 'Arial Black', sans-serif;
-            text-transform: uppercase;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
+        button.action-btn { padding: 12px 25px; font-size: 16px; background-color: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(233, 69, 96, 0.3); width: 95%; max-width: 500px; margin-bottom: 15px; }
+        button.action-btn:active { background-color: #b33045; transform: scale(0.98); }
+        button:disabled { background: #334155 !important; color: #64748b !important; cursor: not-allowed; box-shadow: none !important; }
+
+        /* 数据表格样式 */
+        .table-container { width: 95%; max-width: 500px; margin: 0 auto; overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        table { width: 100%; border-collapse: collapse; background-color: #16213e; color: #fff; font-size: 14px; text-align: center; min-width: 400px; }
+        th { background-color: #0f172a; color: #e94560; font-weight: bold; padding: 12px 8px; border-bottom: 2px solid #e94560; }
+        td { padding: 12px 8px; border-bottom: 1px solid #1a1a2e; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+        
+        /* 单元格状态底色 */
+        .cell-green { background-color: #2e7d32 !important; color: #fff; }
+        .cell-yellow { background-color: #f9a825 !important; color: #fff; }
+        .cell-red { background-color: #c62828 !important; color: #fff; }
+
+        .watermark { position: fixed; bottom: 15px; right: 15px; font-size: 0.8rem; color: rgba(255,255,255,0.15); font-weight: bold; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <h1>🎯 猜猜CS职业选手 🎯</h1>
-    <p>每日盲盒，看看你的含CS量！</p>
+    <h1>CS Guessr</h1>
+    <div class="game-subtitle">根据已知信息猜CS选手</div>
     
+    <div class="mode-badge id-mode-badge" id="modeBadge">📴 单机练习模式</div>
+    
+    <!-- 可折叠的联机大厅面板 -->
+    <div class="lobby-panel">
+        <button class="lobby-toggle" onclick="toggleLobby()">🌐 点击展开/折叠多人联机大厅 ▼</button>
+        <div class="lobby-content" id="lobbyContent">
+            <div class="room-status" id="connectionStatus">📡 正在初始化联机模块...</div>
+            <div id="lobbyControls">
+                <input type="text" id="roomCodeInput" placeholder="输入自定义房间号" style="padding: 10px; margin-bottom: 5px; font-size: 15px; width: 90%; max-width: 280px; box-sizing: border-box;">
+                <div class="btn-group">
+                    <button class="btn-sm btn-create" onclick="createRoom()">新建房间</button>
+                    <button class="btn-sm btn-join" onclick="joinRoom()">加入房间</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实时战况监控 -->
+    <div class="battle-board" id="battleBoard">
+        <div class="player-score" id="p1Box">
+            <div style="color: #4da6ff; font-weight: bold; font-size: 14px;">房主 (胜场)</div>
+            <div class="score-num" id="p1Score">0</div>
+            <div class="player-state" id="p1State">已尝试 0 次</div>
+        </div>
+        <div style="font-style: italic; color: #e94560; font-weight: bold; padding: 0 10px; font-size: 20px;">VS</div>
+        <div class="player-score" id="p2Box">
+            <div style="color: #ff4d4d; font-weight: bold; font-size: 14px;">挑战者 (胜场)</div>
+            <div class="score-num" id="p2Score">0</div>
+            <div class="player-state" id="p2State">已尝试 0 次</div>
+        </div>
+    </div>
+
+    <!-- 竞猜交互区 -->
     <div class="search-container">
-        <input type="text" id="guessInput" placeholder="输入选手id" autocomplete="off">
+        <input type="text" id="guessInput" placeholder="输入选手 ID 启动推导..." autocomplete="off">
         <div id="autocompleteDropdown" class="dropdown"></div>
     </div>
     
-    <button id="guessBtn" onclick="makeGuess()">Confirm / 确认</button>
-    <button id="restartBtn" onclick="restartGame()">🎉 盲狙成功！再来一局 🔄</button>
+    <button id="guessBtn" class="action-btn" onclick="makeGuess()">Confirm / 确认提交</button>
+    <button id="restartBtn" class="action-btn" style="background-color: #4caf50; display: none;" onclick="triggerNextRound()">开启下一轮对局 🔄</button>
 
-    <div id="results"></div>
+    <!-- 数据表单 -->
+    <div class="table-container" id="tableContainer">
+        <table>
+            <thead>
+                <tr>
+                    <th>姓名</th>
+                    <th>国籍</th>
+                    <th>战队</th>
+                    <th>职位</th>
+                    <th>年龄</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+        </table>
+    </div>
 
     <div class="watermark">📺 Max TV</div>
 
     <script>
-        // 🔒 64人2026超级大满贯名单（包含最新加入的 jks，以及修正位置后的 LVG 战队！）
+        // 🔒 64人2026超级大满贯名单
         const db = [
+          // --- 独立大咖与老兵 ---
           { name: "s1mple", region: "欧洲", country: "乌克兰", team: "BC.Game", role: "狙击手/步枪手", age: 28 },
           { name: "jks", region: "大洋洲", country: "澳大利亚", team: "FlyQuest", role: "步枪手", age: 30 },
+          // --- 退役传奇专场 ---
           { name: "AdreN", region: "独联体", country: "哈萨克斯坦", team: "Free Agent", role: "步枪手", age: 36 },
           { name: "gla1ve", region: "欧洲", country: "丹麦", team: "Retired", role: "步枪手", age: 30 },
           { name: "dupreeh", region: "欧洲", country: "丹麦", team: "Retired", role: "步枪手", age: 33 },
@@ -70,67 +141,81 @@
           { name: "Magisk", region: "欧洲", country: "丹麦", team: "Free Agent", role: "步枪手", age: 28 },
           { name: "HooXi", region: "欧洲", country: "丹麦", team: "Astralis", role: "步枪手", age: 31 },
           { name: "MSL", region: "欧洲", country: "丹麦", team: "Free Agent", role: "步枪手", age: 31 },
+          // --- 100 Thieves ---
           { name: "device", region: "欧洲", country: "丹麦", team: "100 Thieves", role: "狙击手", age: 30 },
           { name: "rain", region: "欧洲", country: "挪威", team: "100 Thieves", role: "指挥/步枪手", age: 31 },
+          // --- Team Spirit ---
           { name: "sh1ro", region: "独联体", country: "俄罗斯", team: "Spirit", role: "狙击手", age: 24 },
           { name: "magixx", region: "独联体", country: "俄罗斯", team: "Spirit", role: "步枪手", age: 23 },
           { name: "tN1R", region: "独联体", country: "白俄罗斯", team: "Spirit", role: "步枪手", age: 21 },
           { name: "zont1x", region: "欧洲", country: "乌克兰", team: "Spirit", role: "步枪手", age: 19 },
           { name: "donk", region: "独联体", country: "俄罗斯", team: "Spirit", role: "步枪手", age: 19 },
+          // --- Falcons ---
           { name: "karrigan", region: "欧洲", country: "丹麦", team: "Falcons", role: "指挥", age: 36 },
           { name: "NiKo", region: "欧洲", country: "波黑", team: "Falcons", role: "步枪手", age: 29 },
           { name: "TeSeS", region: "欧洲", country: "丹麦", team: "Falcons", role: "步枪手", age: 25 },
           { name: "m0NESY", region: "独联体", country: "俄罗斯", team: "Falcons", role: "狙击手", age: 21 },
           { name: "kyousuke", region: "独联体", country: "俄罗斯", team: "Falcons", role: "步枪手", age: 18 },
+          // --- Vitality ---
           { name: "apEX", region: "欧洲", country: "法国", team: "Vitality", role: "指挥", age: 33 },
           { name: "ropz", region: "欧洲", country: "爱沙尼亚", team: "Vitality", role: "步枪手", age: 26 },
           { name: "ZywOo", region: "欧洲", country: "法国", team: "Vitality", role: "狙击手", age: 25 },
           { name: "flameZ", region: "欧洲", country: "以色列", team: "Vitality", role: "步枪手", age: 22 },
           { name: "mezii", region: "欧洲", country: "英国", team: "Vitality", role: "步枪手", age: 25 },
+          // --- NAVI ---
           { name: "Aleksib", region: "欧洲", country: "芬兰", team: "NAVI", role: "指挥", age: 29 },
           { name: "iM", region: "欧洲", country: "罗马尼亚", team: "NAVI", role: "步枪手", age: 26 },
           { name: "b1t", region: "欧洲", country: "乌克兰", team: "NAVI", role: "步枪手", age: 23 },
           { name: "w0nderful", region: "欧洲", country: "乌克兰", team: "NAVI", role: "狙击手", age: 21 },
           { name: "makazze", region: "欧洲", country: "科索沃", team: "NAVI", role: "步枪手", age: 19 },
+          // --- G2 Esports ---
           { name: "huNter-", region: "欧洲", country: "波黑", team: "G2", role: "步枪手", age: 30 },
           { name: "SunPayus", region: "欧洲", country: "西班牙", team: "G2", role: "狙击手", age: 27 },
           { name: "matys", region: "欧洲", country: "斯洛伐克", team: "G2", role: "步枪手", age: 24 },
           { name: "HeavyGod", region: "欧洲", country: "以色列", team: "G2", role: "步枪手", age: 23 },
           { name: "NertZ", region: "欧洲", country: "以色列", team: "G2", role: "步枪手", age: 26 },
+          // --- FURIA (黑豹) ---
           { name: "FalleN", region: "美洲", country: "巴西", team: "FURIA", role: "指挥/狙击手", age: 35 },
           { name: "yuurih", region: "美洲", country: "巴西", team: "FURIA", role: "步枪手", age: 26 },
           { name: "YEKINDAR", region: "欧洲", country: "拉脱维亚", team: "FURIA", role: "步枪手", age: 26 },
           { name: "KSCERATO", region: "美洲", country: "巴西", team: "FURIA", role: "步枪手", age: 26 },
           { name: "molodoy", region: "独联体", country: "哈萨克斯坦", team: "FURIA", role: "狙击手", age: 21 },
+          // --- Aurora ---
           { name: "MA3JR", region: "欧洲", country: "土耳其", team: "Aurora", role: "指挥", age: 33 },
           { name: "XANTARES", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 30 },
           { name: "woxic", region: "欧洲", country: "土耳其", team: "Aurora", role: "狙击手", age: 27 },
           { name: "soulfly", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 22 },
           { name: "Wicadia", region: "欧洲", country: "土耳其", team: "Aurora", role: "步枪手", age: 21 },
+          // --- The MongolZ ---
           { name: "bLitz", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "指挥", age: 24 },
           { name: "Techno", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 21 },
           { name: "mzinho", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 19 },
           { name: "910", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "狙击手", age: 24 },
           { name: "cobrazera", region: "亚洲", country: "蒙古", team: "The MongolZ", role: "步枪手", age: 20 },
+          // --- FaZe Clan ---
           { name: "frozen", region: "欧洲", country: "斯洛伐克", team: "FaZe", role: "步枪手", age: 23 },
           { name: "Twistzz", region: "美洲", country: "加拿大", team: "FaZe", role: "步枪手", age: 26 },
           { name: "broky", region: "欧洲", country: "拉脱维亚", team: "FaZe", role: "狙击手", age: 25 },
           { name: "jcobbb", region: "欧洲", country: "波兰", team: "FaZe", role: "步枪手", age: 22 },
+          // --- 3DMAX ---
           { name: "Maka", region: "欧洲", country: "法国", team: "3DMAX", role: "狙击手/指挥", age: 28 },
           { name: "Lucky", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 28 },
           { name: "misutaaa", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 23 },
           { name: "Ex3rcice", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 26 },
-          { name: "Graviti", region: "欧洲", country: "法国", team: "3DMAX", role: "步xl", age: 24 },
+          { name: "Graviti", region: "欧洲", country: "法国", team: "3DMAX", role: "步枪手", age: 24 },
+          // --- Liquid ---
           { name: "NAF", region: "美洲", country: "加拿大", team: "Liquid", role: "步枪手", age: 28 },
           { name: "EliGE", region: "美洲", country: "美国", team: "Liquid", role: "步枪手", age: 28 },
           { name: "malbsMd", region: "美洲", country: "危地马拉", team: "Liquid", role: "步枪手", age: 23 },
           { name: "siuhy", region: "欧洲", country: "波兰", team: "Liquid", role: "指挥", age: 23 },
           { name: "ultimate", region: "欧洲", country: "波兰", team: "Liquid", role: "狙击手", age: 22 },
+          // --- TYLOO ---
           { name: "JamYoung", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 25 },
           { name: "Jee", region: "亚洲", country: "中国", team: "TYLOO", role: "狙击手", age: 24 },
           { name: "Mercury", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 21 },
           { name: "Moseyuh", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 23 },
           { name: "Zero", region: "亚洲", country: "中国", team: "TYLOO", role: "步枪手", age: 21 },
+          // --- Lynn Vision ---
           { name: "Westmelon", region: "亚洲", country: "中国", team: "Lynn Vision", role: "指挥", age: 27 },
           { name: "z4KR", region: "亚洲", country: "中国", team: "Lynn Vision", role: "狙击手", age: 23 },
           { name: "Starry", region: "亚洲", country: "中国", team: "Lynn Vision", role: "步枪手", age: 21 },
@@ -138,16 +223,29 @@
           { name: "C4LLM3SU3", region: "亚洲", country: "中国", team: "Lynn Vision", role: "步枪手", age: 20 }
         ];
 
-        let targetPlayer = db[Math.floor(Math.random() * db.length)];
+        let targetPlayer = null;
+        let peer = null;
+        let conn = null;
+        let isOnlineMode = false; 
+        let myRole = ''; 
+        let scores = { host: 0, guest: 0 };
+        let myShotCount = 0;
+        let roomCode = '';
+        const ID_PREFIX = "maxtv-cs2026-";
 
         const inputEl = document.getElementById("guessInput");
         const dropdownEl = document.getElementById("autocompleteDropdown");
 
+        function toggleLobby() {
+            const content = document.getElementById("lobbyContent");
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+
+        // 下拉联想
         inputEl.addEventListener("input", function() {
             const val = this.value.trim().toLowerCase();
             dropdownEl.innerHTML = ""; 
             if (!val) { dropdownEl.style.display = "none"; return; }
-            
             const matches = db.filter(p => p.name.toLowerCase().startsWith(val));
             if (matches.length > 0) {
                 dropdownEl.style.display = "block"; 
@@ -161,79 +259,224 @@
                     };
                     dropdownEl.appendChild(item);
                 });
-            } else {
-                dropdownEl.style.display = "none";
-            }
+            } else { dropdownEl.style.display = "none"; }
         });
+        document.addEventListener("click", function(e) { if (e.target !== inputEl) { dropdownEl.style.display = "none"; } });
 
-        document.addEventListener("click", function(e) {
-            if (e.target !== inputEl) { dropdownEl.style.display = "none"; }
-        });
+        function initGame() {
+            isOnlineMode = false;
+            document.getElementById("modeBadge").className = "mode-badge mode-local";
+            document.getElementById("modeBadge").innerText = "📴 单机练习模式";
+            generateLocalQuestion();
+            initPeer();
+        }
+
+        function initPeer() {
+            peer = new Peer();
+            peer.on('open', () => {
+                document.getElementById('connectionStatus').innerText = "🟢 联网模块已就绪。请输入房间号完成连接";
+            });
+            peer.on('connection', (connection) => {
+                if (myRole !== 'host') return;
+                conn = connection;
+                setupConnection();
+            });
+        }
+
+        function createRoom() {
+            const code = document.getElementById('roomCodeInput').value.trim();
+            if(!code) return alert('请输入房间号！');
+            roomCode = code; myRole = 'host';
+            if(peer) peer.destroy();
+            peer = new Peer(ID_PREFIX + roomCode);
+            peer.on('open', () => {
+                document.getElementById('connectionStatus').innerText = `🏠 房间 [ ${roomCode} ] 已创建，等待对端加入...`;
+                document.getElementById('lobbyControls').style.display = 'none';
+            });
+            peer.on('error', (err) => { if(err.type === 'unavailable-id') { alert('该房间号已被占用'); initPeer(); } });
+            peer.on('connection', (connection) => { conn = connection; setupConnection(); });
+        }
+
+        function joinRoom() {
+            const code = document.getElementById('roomCodeInput').value.trim();
+            if(!code) return alert('请输入房间号！');
+            roomCode = code; myRole = 'guest';
+            document.getElementById('connectionStatus').innerText = `⚡ 正在接入房间 [ ${roomCode} ] ...`;
+            conn = peer.connect(ID_PREFIX + roomCode);
+            setupConnection();
+        }
+
+        function setupConnection() {
+            conn.on('open', () => {
+                isOnlineMode = true;
+                document.getElementById("modeBadge").className = "mode-badge mode-online";
+                document.getElementById("modeBadge").innerText = `⚔️ 联机竞技模式 (房间: ${roomCode})`;
+                
+                document.getElementById('connectionStatus').innerText = `已成功锁定对手。同题独立推导开始`;
+                document.getElementById('battleBoard').style.display = 'flex';
+                document.getElementById('lobbyContent').style.display = 'none'; 
+                
+                inputEl.disabled = false;
+                document.getElementById("guessBtn").disabled = false;
+
+                if (myRole === 'host') {
+                    generateNewOnlineQuestion(); 
+                }
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'question') {
+                    targetPlayer = db[data.index];
+                    resetRoundUI();
+                } else if (data.type === 'shotUpdate') {
+                    if(data.role === 'host') {
+                        document.getElementById('p1State').innerText = `已尝试 ${data.count} 次`;
+                    } else {
+                        document.getElementById('p2State').innerText = `已尝试 ${data.count} 次`;
+                    }
+                } else if (data.type === 'win') {
+                    scores = data.scores;
+                    document.getElementById('p1Score').innerText = scores.host;
+                    document.getElementById('p2Score').innerText = scores.guest;
+                    showWinOverlay(data.winner, data.ansName);
+                } else if (data.type === 'nextRound') {
+                    resetRoundUI();
+                }
+            });
+        }
+
+        function generateLocalQuestion() {
+            const randIndex = Math.floor(Math.random() * db.length);
+            targetPlayer = db[randIndex];
+            resetRoundUI();
+        }
+
+        function generateNewOnlineQuestion() {
+            const randIndex = Math.floor(Math.random() * db.length);
+            targetPlayer = db[randIndex];
+            resetRoundUI();
+            conn.send({ type: 'question', index: randIndex });
+        }
+
+        function resetRoundUI() {
+            document.getElementById("resultsTableBody").innerHTML = "";
+            inputEl.value = "";
+            inputEl.disabled = false;
+            document.getElementById("guessBtn").style.display = "inline-block";
+            document.getElementById("guessBtn").disabled = false;
+            document.getElementById("restartBtn").style.display = "none";
+            
+            myShotCount = 0;
+            if(isOnlineMode) {
+                document.getElementById('p1State').innerText = "已尝试 0 次";
+                document.getElementById('p2State').innerText = "已尝试 0 次";
+            }
+        }
 
         function makeGuess() {
             const inputVal = document.getElementById("guessInput").value.trim();
             const guess = db.find(p => p.name.toLowerCase() === inputVal.toLowerCase());
+            if (!guess) { alert("❌ 未匹配到有效选手，请检查拼写。"); return; }
+
+            myShotCount++;
             
-            if (!guess) {
-                alert("❌ 查无此人！要不你再看看下拉提示？");
-                return;
+            if(isOnlineMode) {
+                if (myRole === 'host') {
+                    document.getElementById('p1State').innerText = `已尝试 ${myShotCount} 次`;
+                } else {
+                    document.getElementById('p2State').innerText = `已尝试 ${myShotCount} 次`;
+                }
+                conn.send({ type: 'shotUpdate', role: myRole, count: myShotCount });
             }
 
-            let countryColor = "🟥";
-            if (guess.country === targetPlayer.country) {
-                countryColor = "🟩"; 
-            } else if (guess.region === targetPlayer.region) {
-                countryColor = "🟨"; 
+            renderLocalRowToTable(guess);
+
+            if (guess.name.toLowerCase() === targetPlayer.name.toLowerCase()) {
+                if(isOnlineMode) {
+                    scores[myRole]++;
+                    document.getElementById('p1Score').innerText = scores.host;
+                    document.getElementById('p2Score').innerText = scores.guest;
+
+                    const winnerLabel = myRole === 'host' ? '房主' : '挑战者';
+                    conn.send({ type: 'win', winner: winnerLabel, scores: scores, ansName: targetPlayer.name });
+                    showWinOverlay(winnerLabel, targetPlayer.name);
+                } else {
+                    showLocalWinOverlay();
+                }
             }
+        }
 
-            let teamColor = guess.team === targetPlayer.team ? "🟩" : "🟥";
-
-            let roleColor = "🟥";
-            if (guess.role === targetPlayer.role) {
-                roleColor = "🟩";
-            } else if ((guess.role.includes("步枪") || guess.role.includes("指挥")) && (targetPlayer.role.includes("步枪") || targetPlayer.role.includes("指挥"))) {
-                roleColor = "🟨"; 
-            }
-
-            let ageColor = "🟥";
-            let arrow = guess.age > targetPlayer.age ? "🔽" : "🔼";
+        function renderLocalRowToTable(guess) {
+            const r = judgeColors(guess);
+            const isMatch = guess.name.toLowerCase() === targetPlayer.name.toLowerCase();
+            const nameClass = isMatch ? "cell-green" : "cell-red";
             
-            if (guess.age === targetPlayer.age) {
-                ageColor = "🟩";
-                arrow = "";
-            } else if (Math.abs(guess.age - targetPlayer.age) <= 2) {
-                ageColor = "🟨"; 
-            }
-
-            const html = `
-                <div class="guess-row">
-                    <strong>ID: ${guess.name}</strong> ${guess.name === targetPlayer.name ? "🟩 盲狙成功！" : "🟥"}<br>
-                    🏴 国籍: ${guess.country} ${countryColor}<br>
-                    🛡️ 战队: ${guess.team} ${teamColor}<br>
-                    🔫 位置: ${guess.role} ${roleColor}<br>
-                    🎂 年龄: ${guess.age} 岁 ${ageColor} ${arrow}
-                </div>
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="${nameClass}">${guess.name} ${isMatch ? "🟩" : ""}</td>
+                <td class="${r.cClass}">${guess.country}</td>
+                <td class="${r.tClass}">${guess.team}</td>
+                <td class="${r.rClass}">${guess.role}</td>
+                <td class="${r.aClass}">${guess.age} 岁 ${r.arrow}</td>
             `;
 
-            document.getElementById("results").insertAdjacentHTML('afterbegin', html);
-            document.getElementById("guessInput").value = ""; 
-            dropdownEl.style.display = "none"; 
+            const tbody = document.getElementById("resultsTableBody");
+            tbody.insertBefore(tr, tbody.firstChild);
 
-            if (guess.name === targetPlayer.name) {
-                document.getElementById("guessBtn").style.display = "none"; 
-                document.getElementById("restartBtn").style.display = "inline-block"; 
-                document.getElementById("guessInput").disabled = true; 
+            document.getElementById("guessInput").value = "";
+            dropdownEl.style.display = "none";
+        }
+
+        function judgeColors(guess) {
+            let cClass = "cell-red";
+            if (guess.country === targetPlayer.country) { cClass = "cell-green"; } 
+            else if (guess.region === targetPlayer.region) { cClass = "cell-yellow"; }
+
+            let tClass = guess.team === targetPlayer.team ? "cell-green" : "cell-red";
+
+            let rClass = "cell-red";
+            if (guess.role === targetPlayer.role) { rClass = "cell-green"; } 
+            else if ((guess.role.includes("步枪") || guess.role.includes("指挥")) && (targetPlayer.role.includes("步枪") || targetPlayer.role.includes("指挥"))) { rClass = "cell-yellow"; }
+
+            let aClass = "cell-red";
+            let arrow = guess.age > targetPlayer.age ? "🔽" : "🔼";
+            if (guess.age === targetPlayer.age) { aClass = "cell-green"; arrow = ""; } 
+            else if (Math.abs(guess.age - targetPlayer.age) <= 2) { aClass = "cell-yellow"; }
+
+            return { cClass, tClass, rClass, aClass, arrow };
+        }
+
+        function showLocalWinOverlay() {
+            inputEl.disabled = true;
+            document.getElementById("guessBtn").style.display = "none";
+            document.getElementById("restartBtn").style.display = "inline-block";
+            document.getElementById("restartBtn").style.backgroundColor = "#4caf50";
+            document.getElementById("restartBtn").innerText = `🏆 推导成功！用时 ${myShotCount} 次尝试。点击开启下个选手 🔄`;
+        }
+
+        function showWinOverlay(winner, ansName) {
+            inputEl.disabled = true;
+            document.getElementById("guessBtn").style.display = "none";
+            
+            if(myRole === 'host') {
+                document.getElementById("restartBtn").style.display = "inline-block";
+                document.getElementById("restartBtn").innerText = `🏆 ${winner} 率先破译答案 · 点击进入下轮对局 🔄`;
+            } else {
+                document.getElementById("restartBtn").style.display = "inline-block";
+                document.getElementById("restartBtn").disabled = true;
+                document.getElementById("restartBtn").innerText = `🚨 本轮结束，标准答案：[ ${ansName} ]`;
             }
         }
 
-        function restartGame() {
-            targetPlayer = db[Math.floor(Math.random() * db.length)];
-            document.getElementById("results").innerHTML = "";
-            document.getElementById("guessBtn").style.display = "inline-block";
-            document.getElementById("restartBtn").style.display = "none";
-            document.getElementById("guessInput").disabled = false;
-            document.getElementById("guessInput").focus();
+        function triggerNextRound() {
+            if(isOnlineMode) {
+                generateNewOnlineQuestion();
+            } else {
+                generateLocalQuestion();
+            }
         }
+
+        window.onload = initGame;
     </script>
 </body>
 </html>

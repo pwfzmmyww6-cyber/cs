@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CS Guessr</title>
-    <!-- 引入免费的 PeerJS 联机库 -->
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a2e; color: #fff; font-family: sans-serif; text-align: center; padding: 15px; padding-bottom: 60px; }
@@ -70,7 +69,7 @@
         .cell-yellow { background-color: #f9a825 !important; color: #fff; }
         .cell-red { background-color: #c62828 !important; color: #fff; }
         
-        /* 迷雾遮罩效果：不留痕迹隐藏文本，但保留背景色 */
+        /* 迷雾遮罩效果 */
         .fog-cell { color: transparent !important; text-shadow: none !important; }
 
         .watermark { position: fixed; bottom: 15px; right: 15px; font-size: 0.8rem; color: rgba(255,255,255,0.15); font-weight: bold; pointer-events: none; }
@@ -83,16 +82,13 @@
     
     <div class="mode-badge id-mode-badge" id="modeBadge">📴 单机练习模式</div>
     
-    <!-- 倒计时横幅 -->
     <div class="timer-banner" id="timerBanner">⏳ 剩余时间: 120 秒</div>
     
-    <!-- 可折叠的联机大厅面板 -->
     <div class="lobby-panel">
         <button class="lobby-toggle" onclick="toggleLobby()">🌐 点击展开/折叠多人联机大厅 ▼</button>
         <div class="lobby-content" id="lobbyContent">
             <div class="room-status" id="connectionStatus">📡 正在初始化联机模块...</div>
             <div id="lobbyControls">
-                <!-- BO赛制选择器 -->
                 <div class="bo-selector" id="boSelectorContainer">
                     <span>选择赛制：</span>
                     <label><input type="radio" name="boType" value="1" checked> BO1</label>
@@ -108,7 +104,6 @@
         </div>
     </div>
 
-    <!-- 实时战况监控 -->
     <div class="battle-board" id="battleBoard">
         <div class="player-score" id="p1Box">
             <div style="color: #4da6ff; font-weight: bold; font-size: 14px;">房主 (胜场)</div>
@@ -126,7 +121,6 @@
         </div>
     </div>
 
-    <!-- 竞猜交互区 -->
     <div class="search-container">
         <input type="text" id="guessInput" placeholder="输入选手 ID 启动推导..." autocomplete="off">
         <div id="autocompleteDropdown" class="dropdown"></div>
@@ -135,9 +129,7 @@
     <button id="guessBtn" class="action-btn" onclick="makeGuess()">Confirm / 确认提交</button>
     <button id="restartBtn" class="action-btn" style="background-color: #4caf50; display: none;" onclick="triggerNextRound()">开启下一轮对局 🔄</button>
 
-    <!-- 分立式双表格容器（战争迷雾对决版） -->
     <div class="tables-split-view">
-        <!-- 我的面板 -->
         <div class="table-section">
             <div class="table-title" style="color: #4da6ff;">👤 我的推导数据面盘：</div>
             <div class="table-container">
@@ -150,7 +142,6 @@
             </div>
         </div>
 
-        <!-- 对方的面板（仅在联机模式下显示） -->
         <div class="table-section" id="opponentSection" style="display: none;">
             <div class="table-title" style="color: #ff4d4d;">🕵️ 对手的动态（战争迷雾中...）：</div>
             <div class="table-container">
@@ -264,12 +255,21 @@
         const inputEl = document.getElementById("guessInput");
         const dropdownEl = document.getElementById("autocompleteDropdown");
 
+        // 🚀 更换更稳定的国内可用公网 ICE 穿透服务器（规避卡死、断连）
+        const peerConfig = {
+            config: {
+                'iceServers': [
+                    { urls: 'stun:stun.stunprotocol.org:3478' },
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            }
+        };
+
         function toggleLobby() {
             const content = document.getElementById("lobbyContent");
             content.style.display = content.style.display === "block" ? "none" : "block";
         }
 
-        // 下拉联想
         inputEl.addEventListener("input", function() {
             if(isMatchOver) return;
             const val = this.value.trim().toLowerCase();
@@ -304,7 +304,8 @@
         }
 
         function initPeer() {
-            peer = new Peer();
+            if(peer) try { peer.destroy(); } catch(e){}
+            peer = new Peer(peerConfig);
             peer.on('open', () => {
                 document.getElementById('connectionStatus').innerText = "🟢 联网模块已就绪。请输入房间号完成连接";
             });
@@ -322,13 +323,17 @@
             boMax = parseInt(boVal);
 
             roomCode = code; myRole = 'host';
-            if(peer) peer.destroy();
-            peer = new Peer(ID_PREFIX + roomCode);
+            if(peer) try { peer.destroy(); } catch(e){}
+            
+            peer = new Peer(ID_PREFIX + roomCode, peerConfig);
             peer.on('open', () => {
                 document.getElementById('connectionStatus').innerText = `🏠 房间 [ ${roomCode} ] 已创建 (BO${boMax})，等待对端加入...`;
                 document.getElementById('lobbyControls').style.display = 'none';
             });
-            peer.on('error', (err) => { if(err.type === 'unavailable-id') { alert('该房间号已被占用'); initPeer(); } });
+            peer.on('error', (err) => { 
+                if(err.type === 'unavailable-id') { alert('该房间号已被占用'); initPeer(); } 
+                else { alert('创建房间发生错误: ' + err.type); }
+            });
             peer.on('connection', (connection) => { conn = connection; setupConnection(); });
         }
 
@@ -337,7 +342,8 @@
             if(!code) return alert('请输入房间号！');
             roomCode = code; myRole = 'guest';
             document.getElementById('connectionStatus').innerText = `⚡ 正在接入房间 [ ${roomCode} ] ...`;
-            conn = peer.connect(ID_PREFIX + roomCode);
+            
+            conn = peer.connect(ID_PREFIX + code);
             setupConnection();
         }
 
@@ -350,9 +356,11 @@
                 document.getElementById('p1Score').innerText = "0";
                 document.getElementById('p2Score').innerText = "0";
                 
+                // 🌟 【Bug 修复】：不管是房主还是客机，连上的瞬间立马刷新战局大厅UI
+                updateMatchFormatUI();
+                
                 if (myRole === 'host') {
                     conn.send({ type: 'initMatchConfig', boMax: boMax });
-                    updateMatchFormatUI();
                     generateNewOnlineQuestion(); 
                 }
             });
@@ -360,13 +368,12 @@
             conn.on('data', (data) => {
                 if (data.type === 'initMatchConfig') {
                     boMax = data.boMax;
-                    updateMatchFormatUI();
+                    document.getElementById('matchFormatLabel').innerText = `BO${boMax}`;
                 } else if (data.type === 'question') {
                     targetPlayer = db[data.index];
                     resetRoundUI();
                     startRoundTimer();
                 } else if (data.type === 'oppRowSync') {
-                    // 核心高光接收器：收到对方丢过来的行颜色数据，渲染到对手的表格里
                     renderOpponentRow(data.rowColors);
                 } else if (data.type === 'shotUpdate') {
                     if(data.role === 'host') {
@@ -389,6 +396,11 @@
                     resetRoundUI();
                 }
             });
+
+            conn.on('close', () => {
+                alert('🔌 与对方的连接已断开，回到单机模式');
+                initGame();
+            });
         }
 
         function updateMatchFormatUI() {
@@ -398,7 +410,7 @@
             document.getElementById('battleBoard').style.display = 'flex';
             document.getElementById('lobbyContent').style.display = 'none'; 
             document.getElementById("timerBanner").style.display = "block";
-            document.getElementById("opponentSection").style.display = "block"; // 显示对手框
+            document.getElementById("opponentSection").style.display = "block"; 
         }
 
         function startRoundTimer() {
@@ -473,7 +485,6 @@
                 }
                 conn.send({ type: 'shotUpdate', role: myRole, count: myShotCount });
 
-                // 🌟 将自己当前行的颜色配置包发给对方
                 conn.send({
                     type: 'oppRowSync',
                     rowColors: {
@@ -488,7 +499,6 @@
                 });
             }
 
-            // 渲染自己的表格
             renderMyRow(guess, nameClass, isMatch, r);
 
             if (isMatch) {
@@ -521,7 +531,6 @@
             }
         }
 
-        // 渲染自己这边的真实表格行
         function renderMyRow(guess, nameClass, isMatch, r) {
             const tr = document.createElement("tr");
             tr.innerHTML = `
@@ -538,7 +547,6 @@
             dropdownEl.style.display = "none";
         }
 
-        // 🌟 战争迷雾渲染函数：只渲染颜色背景，通过 .fog-cell 隐去具体字迹
         function renderOpponentRow(colors) {
             const tr = document.createElement("tr");
             tr.innerHTML = `
@@ -548,7 +556,6 @@
                 <td class="${colors.rClass} fog-cell">MIST</td>
                 <td class="${colors.aClass}">${colors.arrow ? colors.arrow : "🟩"}</td>
             `;
-            // 注意：除了年龄部分的箭头（高低提示）可以提供情报外，文字都是透明隐藏的
             const tbody = document.getElementById("oppResultsBody");
             tbody.insertBefore(tr, tbody.firstChild);
         }

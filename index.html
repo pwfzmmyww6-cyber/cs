@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CS Guessr</title>
+    <!-- 引入免费的 PeerJS 联机库 -->
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #1a1a2e; color: #fff; font-family: sans-serif; text-align: center; padding: 15px; padding-bottom: 60px; }
@@ -54,15 +55,23 @@
         button.action-btn:active { background-color: #b33045; transform: scale(0.98); }
         button:disabled { background: #334155 !important; color: #64748b !important; cursor: not-allowed; box-shadow: none !important; }
 
-        /* 数据表格样式 */
-        .table-container { width: 95%; max-width: 500px; margin: 0 auto; overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        table { width: 100%; border-collapse: collapse; background-color: #16213e; color: #fff; font-size: 14px; text-align: center; min-width: 400px; }
-        th { background-color: #0f172a; color: #e94560; font-weight: bold; padding: 12px 8px; border-bottom: 2px solid #e94560; }
-        td { padding: 12px 8px; border-bottom: 1px solid #1a1a2e; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+        /* 双表格并排容器布局 */
+        .tables-split-view { display: flex; flex-direction: column; gap: 20px; width: 95%; max-width: 500px; margin: 0 auto; }
+        .table-section { width: 100%; }
+        .table-title { font-size: 14px; font-weight: bold; text-align: left; margin-bottom: 6px; padding-left: 4px; display: flex; align-items: center; gap: 6px; }
+        
+        /* 数据表格基础样式 */
+        .table-container { width: 100%; overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        table { width: 100%; border-collapse: collapse; background-color: #16213e; color: #fff; font-size: 13px; text-align: center; min-width: 380px; }
+        th { background-color: #0f172a; color: #e94560; font-weight: bold; padding: 10px 6px; border-bottom: 2px solid #e94560; }
+        td { padding: 10px 6px; border-bottom: 1px solid #1a1a2e; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
         
         .cell-green { background-color: #2e7d32 !important; color: #fff; }
         .cell-yellow { background-color: #f9a825 !important; color: #fff; }
         .cell-red { background-color: #c62828 !important; color: #fff; }
+        
+        /* 迷雾遮罩效果：不留痕迹隐藏文本，但保留背景色 */
+        .fog-cell { color: transparent !important; text-shadow: none !important; }
 
         .watermark { position: fixed; bottom: 15px; right: 15px; font-size: 0.8rem; color: rgba(255,255,255,0.15); font-weight: bold; pointer-events: none; }
     </style>
@@ -74,13 +83,16 @@
     
     <div class="mode-badge id-mode-badge" id="modeBadge">📴 单机练习模式</div>
     
+    <!-- 倒计时横幅 -->
     <div class="timer-banner" id="timerBanner">⏳ 剩余时间: 120 秒</div>
     
+    <!-- 可折叠的联机大厅面板 -->
     <div class="lobby-panel">
         <button class="lobby-toggle" onclick="toggleLobby()">🌐 点击展开/折叠多人联机大厅 ▼</button>
         <div class="lobby-content" id="lobbyContent">
             <div class="room-status" id="connectionStatus">📡 正在初始化联机模块...</div>
             <div id="lobbyControls">
+                <!-- BO赛制选择器 -->
                 <div class="bo-selector" id="boSelectorContainer">
                     <span>选择赛制：</span>
                     <label><input type="radio" name="boType" value="1" checked> BO1</label>
@@ -96,6 +108,7 @@
         </div>
     </div>
 
+    <!-- 实时战况监控 -->
     <div class="battle-board" id="battleBoard">
         <div class="player-score" id="p1Box">
             <div style="color: #4da6ff; font-weight: bold; font-size: 14px;">房主 (胜场)</div>
@@ -113,6 +126,7 @@
         </div>
     </div>
 
+    <!-- 竞猜交互区 -->
     <div class="search-container">
         <input type="text" id="guessInput" placeholder="输入选手 ID 启动推导..." autocomplete="off">
         <div id="autocompleteDropdown" class="dropdown"></div>
@@ -121,20 +135,33 @@
     <button id="guessBtn" class="action-btn" onclick="makeGuess()">Confirm / 确认提交</button>
     <button id="restartBtn" class="action-btn" style="background-color: #4caf50; display: none;" onclick="triggerNextRound()">开启下一轮对局 🔄</button>
 
-    <div class="table-container" id="tableContainer">
-        <table>
-            <thead>
-                <tr>
-                    <th>姓名</th>
-                    <th>国籍</th>
-                    <th>战队</th>
-                    <th>职位</th>
-                    <th>年龄</th>
-                </tr>
-            </thead>
-            <tbody id="resultsTableBody">
-            </tbody>
-        </table>
+    <!-- 分立式双表格容器（战争迷雾对决版） -->
+    <div class="tables-split-view">
+        <!-- 我的面板 -->
+        <div class="table-section">
+            <div class="table-title" style="color: #4da6ff;">👤 我的推导数据面盘：</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr><th>姓名</th><th>国籍</th><th>战队</th><th>职位</th><th>年龄</th></tr>
+                    </thead>
+                    <tbody id="myResultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 对方的面板（仅在联机模式下显示） -->
+        <div class="table-section" id="opponentSection" style="display: none;">
+            <div class="table-title" style="color: #ff4d4d;">🕵️ 对手的动态（战争迷雾中...）：</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr><th>姓名</th><th>国籍</th><th>战队</th><th>职位</th><th>年龄</th></tr>
+                    </thead>
+                    <tbody id="oppResultsBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="watermark">📺 Max TV</div>
@@ -228,9 +255,9 @@
         let scores = { host: 0, guest: 0 };
         let myShotCount = 0;
         let roomCode = '';
-        let boMax = 1; // 默认BO1
+        let boMax = 1; 
         let timerInterval = null;
-        let timeLeft = 120; // 2分钟限制
+        let timeLeft = 120; 
         let isMatchOver = false;
 
         const ID_PREFIX = "maxtv-cs2026-";
@@ -271,6 +298,7 @@
             document.getElementById("modeBadge").className = "mode-badge mode-local";
             document.getElementById("modeBadge").innerText = "📴 单机练习模式";
             document.getElementById("timerBanner").style.display = "none";
+            document.getElementById("opponentSection").style.display = "none";
             generateLocalQuestion();
             initPeer();
         }
@@ -290,8 +318,6 @@
         function createRoom() {
             const code = document.getElementById('roomCodeInput').value.trim();
             if(!code) return alert('请输入房间号！');
-            
-            // 读取选中的 BO 赛制
             const boVal = document.querySelector('input[name="boType"]:checked').value;
             boMax = parseInt(boVal);
 
@@ -324,7 +350,6 @@
                 document.getElementById('p1Score').innerText = "0";
                 document.getElementById('p2Score').innerText = "0";
                 
-                // 房主向客机发送赛制信息
                 if (myRole === 'host') {
                     conn.send({ type: 'initMatchConfig', boMax: boMax });
                     updateMatchFormatUI();
@@ -340,6 +365,9 @@
                     targetPlayer = db[data.index];
                     resetRoundUI();
                     startRoundTimer();
+                } else if (data.type === 'oppRowSync') {
+                    // 核心高光接收器：收到对方丢过来的行颜色数据，渲染到对手的表格里
+                    renderOpponentRow(data.rowColors);
                 } else if (data.type === 'shotUpdate') {
                     if(data.role === 'host') {
                         document.getElementById('p1State').innerText = `已尝试 ${data.count} 次`;
@@ -370,9 +398,9 @@
             document.getElementById('battleBoard').style.display = 'flex';
             document.getElementById('lobbyContent').style.display = 'none'; 
             document.getElementById("timerBanner").style.display = "block";
+            document.getElementById("opponentSection").style.display = "block"; // 显示对手框
         }
 
-        // 核心计时器逻辑
         function startRoundTimer() {
             clearInterval(timerInterval);
             timeLeft = 120;
@@ -381,25 +409,17 @@
             timerInterval = setInterval(() => {
                 timeLeft--;
                 document.getElementById("timerBanner").innerText = `⏳ 剩余时间: ${timeLeft} 秒`;
-                
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     if (isOnlineMode && myRole === 'host') {
-                        // 房主判定平局并广播
                         handleRoundTimeout();
                     }
                 }
             }, 1000);
         }
 
-        // 2分钟时间到判定平局
         function handleRoundTimeout() {
-            conn.send({ 
-                type: 'roundOver', 
-                isTie: true, 
-                scores: scores, 
-                ansName: targetPlayer.name 
-            });
+            conn.send({ type: 'roundOver', isTie: true, scores: scores, ansName: targetPlayer.name });
             showTieOverlay(targetPlayer.name);
         }
 
@@ -418,7 +438,8 @@
         }
 
         function resetRoundUI() {
-            document.getElementById("resultsTableBody").innerHTML = "";
+            document.getElementById("myResultsBody").innerHTML = "";
+            document.getElementById("oppResultsBody").innerHTML = "";
             inputEl.value = "";
             inputEl.disabled = false;
             document.getElementById("guessBtn").style.display = "inline-block";
@@ -440,6 +461,10 @@
 
             myShotCount++;
             
+            const r = judgeColors(guess);
+            const isMatch = guess.name.toLowerCase() === targetPlayer.name.toLowerCase();
+            const nameClass = isMatch ? "cell-green" : "cell-red";
+
             if(isOnlineMode) {
                 if (myRole === 'host') {
                     document.getElementById('p1State').innerText = `已尝试 ${myShotCount} 次`;
@@ -447,11 +472,26 @@
                     document.getElementById('p2State').innerText = `已尝试 ${myShotCount} 次`;
                 }
                 conn.send({ type: 'shotUpdate', role: myRole, count: myShotCount });
+
+                // 🌟 将自己当前行的颜色配置包发给对方
+                conn.send({
+                    type: 'oppRowSync',
+                    rowColors: {
+                        nameClass: nameClass,
+                        isMatchMarker: isMatch ? "🟩" : "",
+                        cClass: r.cClass,
+                        tClass: r.tClass,
+                        rClass: r.rClass,
+                        aClass: r.aClass,
+                        arrow: r.arrow
+                    }
+                });
             }
 
-            renderLocalRowToTable(guess);
+            // 渲染自己的表格
+            renderMyRow(guess, nameClass, isMatch, r);
 
-            if (guess.name.toLowerCase() === targetPlayer.name.toLowerCase()) {
+            if (isMatch) {
                 clearInterval(timerInterval);
                 if(isOnlineMode) {
                     scores[myRole]++;
@@ -460,7 +500,6 @@
 
                     const winnerLabel = myRole === 'host' ? '房主' : '挑战者';
                     
-                    // 检测整场比赛是否判定胜负 (根据BO赛制过半数胜场判定)
                     let matchWinner = null;
                     const neededWins = Math.ceil(boMax / 2);
                     if (scores.host >= neededWins) matchWinner = '房主';
@@ -482,11 +521,8 @@
             }
         }
 
-        function renderLocalRowToTable(guess) {
-            const r = judgeColors(guess);
-            const isMatch = guess.name.toLowerCase() === targetPlayer.name.toLowerCase();
-            const nameClass = isMatch ? "cell-green" : "cell-red";
-            
+        // 渲染自己这边的真实表格行
+        function renderMyRow(guess, nameClass, isMatch, r) {
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td class="${nameClass}">${guess.name} ${isMatch ? "🟩" : ""}</td>
@@ -495,12 +531,26 @@
                 <td class="${r.rClass}">${guess.role}</td>
                 <td class="${r.aClass}">${guess.age} 岁 ${r.arrow}</td>
             `;
-
-            const tbody = document.getElementById("resultsTableBody");
+            const tbody = document.getElementById("myResultsBody");
             tbody.insertBefore(tr, tbody.firstChild);
 
             document.getElementById("guessInput").value = "";
             dropdownEl.style.display = "none";
+        }
+
+        // 🌟 战争迷雾渲染函数：只渲染颜色背景，通过 .fog-cell 隐去具体字迹
+        function renderOpponentRow(colors) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="${colors.nameClass} fog-cell">MIST ${colors.isMatchMarker}</td>
+                <td class="${colors.cClass} fog-cell">MIST</td>
+                <td class="${colors.tClass} fog-cell">MIST</td>
+                <td class="${colors.rClass} fog-cell">MIST</td>
+                <td class="${colors.aClass}">${colors.arrow ? colors.arrow : "🟩"}</td>
+            `;
+            // 注意：除了年龄部分的箭头（高低提示）可以提供情报外，文字都是透明隐藏的
+            const tbody = document.getElementById("oppResultsBody");
+            tbody.insertBefore(tr, tbody.firstChild);
         }
 
         function judgeColors(guess) {
@@ -530,7 +580,6 @@
             document.getElementById("restartBtn").innerText = `🏆 推导成功！用时 ${myShotCount} 次尝试。点击开启下个选手 🔄`;
         }
 
-        // 联机胜负结算显示
         function showWinOverlay(winner, ansName, matchWinner) {
             inputEl.disabled = true;
             document.getElementById("guessBtn").style.display = "none";
@@ -554,7 +603,6 @@
             }
         }
 
-        // 平局结算显示
         function showTieOverlay(ansName) {
             inputEl.disabled = true;
             document.getElementById("guessBtn").style.display = "none";
@@ -573,7 +621,6 @@
 
         function triggerNextRound() {
             if(isMatchOver) {
-                // 如果整场比赛打完了，再点就是重开新局
                 isMatchOver = false;
                 scores = { host: 0, guest: 0 };
                 document.getElementById('p1Score').innerText = "0";
